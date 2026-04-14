@@ -1,0 +1,57 @@
+# Build output
+bin/
+obj/
+
+# Debug logs
+*.log
+debug.log
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# NuGet packages
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Visual Studio
+*.rsuser
+*.vsp
+*.vspx
+*.sap
+*.cachefile
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.psess
+*.vsp
+*.vspx
+.localhistory/
+.vshistory/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# Sensitive settings
+appsettings.Development.json
+*.local.json
+
+# OS
+.DS_Store
+Thumbs.db
