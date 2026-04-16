@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using RealTime.Services;
+using RealTime.Utils;
 
 namespace RealTime.Hubs;
 
@@ -69,7 +70,7 @@ public class RealtimeHub : Hub
         string groupName = $"frontend/{groupKey}";
         string methodName = "receiveNotification";
         string redisKey = $"notifications:{groupName}";
-        uint timeLifeSeconds = 60;
+        var timeLife = PayloadUtils.ExtractTimeLife(payload);
 
         string serialized = JsonSerializer.Serialize(payload);
 
@@ -79,8 +80,7 @@ public class RealtimeHub : Hub
         {
             var db = _redis.GetDatabase();
             await db.ListRightPushAsync(redisKey, serialized);
-            if (timeLifeSeconds > 0)
-                await db.KeyExpireAsync(redisKey, TimeSpan.FromSeconds(timeLifeSeconds));
+            await db.KeyExpireAsync(redisKey, timeLife);
         }
         catch (Exception ex)
         {
@@ -94,7 +94,24 @@ public class RealtimeHub : Hub
     {
         string methodName = "receiveNotification";
         string groupName = "frontend/global";
+        string redisKey = $"notifications:{groupName}";
+        var timeLife = PayloadUtils.ExtractTimeLife(payload);
+
+        string serialized = JsonSerializer.Serialize(payload);
+
         Console.WriteLine($"Sending to {groupName}: {payload}");
+
+        try
+        {
+            var db = _redis.GetDatabase();
+            await db.ListRightPushAsync(redisKey, serialized);
+            await db.KeyExpireAsync(redisKey, timeLife);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis unavailable, notification not stored for {Group}.", groupName);
+        }
+
         await Clients.Group(groupName).SendAsync(methodName, payload);
     }
 
@@ -103,7 +120,7 @@ public class RealtimeHub : Hub
         string groupName = $"frontend/{groupKey}";
         string methodName = "receiveNotification";
         string redisKey = $"notifications:{groupName}";
-        uint timeLifeSeconds = 60;
+        var timeLife = PayloadUtils.ExtractTimeLife(payload);
 
         string serialized = JsonSerializer.Serialize(payload);
 
@@ -113,8 +130,7 @@ public class RealtimeHub : Hub
         {
             var db = _redis.GetDatabase();
             await db.ListRightPushAsync(redisKey, serialized);
-            if (timeLifeSeconds > 0)
-                await db.KeyExpireAsync(redisKey, TimeSpan.FromSeconds(timeLifeSeconds));
+            await db.KeyExpireAsync(redisKey, timeLife);
         }
         catch (Exception ex)
         {
@@ -129,7 +145,7 @@ public class RealtimeHub : Hub
         string groupName = $"frontend/admin/{groupKey}";
         string methodName = "receiveNotification";
         string redisKey = $"notifications:{groupName}";
-        uint timeLifeSeconds = 60;
+        var timeLife = PayloadUtils.ExtractTimeLife(payload);
 
         string serialized = JsonSerializer.Serialize(payload);
 
@@ -139,8 +155,7 @@ public class RealtimeHub : Hub
         {
             var db = _redis.GetDatabase();
             await db.ListRightPushAsync(redisKey, serialized);
-            if (timeLifeSeconds > 0)
-                await db.KeyExpireAsync(redisKey, TimeSpan.FromSeconds(timeLifeSeconds));
+            await db.KeyExpireAsync(redisKey, timeLife);
         }
         catch (Exception ex)
         {
