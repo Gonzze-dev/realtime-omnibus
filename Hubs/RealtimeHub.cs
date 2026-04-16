@@ -50,6 +50,8 @@ public class RealtimeHub : Hub
 
             var notifications = stored
                 .Select(v => JsonSerializer.Deserialize<JsonElement>((string)v!))
+                .Where(e => e.TryGetProperty("data", out _))
+                .Select(e => e.GetProperty("data"))
                 .ToArray();
 
             foreach (var notification in notifications)
@@ -72,7 +74,7 @@ public class RealtimeHub : Hub
         string redisKey = $"notifications:{groupName}";
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
 
-        string serialized = JsonSerializer.Serialize(payload);
+        string serialized = JsonSerializer.Serialize(new { groupName, data = payload });
 
         Console.WriteLine($"Sending to {groupName}: {payload}");
 
@@ -81,6 +83,7 @@ public class RealtimeHub : Hub
             var db = _redis.GetDatabase();
             await db.ListRightPushAsync(redisKey, serialized);
             await db.KeyExpireAsync(redisKey, timeLife);
+            await RedisNotificationUtils.StoreNotificationIndexAsync(db, payload, groupName, timeLife);
         }
         catch (Exception ex)
         {
@@ -97,7 +100,7 @@ public class RealtimeHub : Hub
         string redisKey = $"notifications:{groupName}";
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
 
-        string serialized = JsonSerializer.Serialize(payload);
+        string serialized = JsonSerializer.Serialize(new { groupName, data = payload });
 
         Console.WriteLine($"Sending to {groupName}: {payload}");
 
@@ -106,6 +109,7 @@ public class RealtimeHub : Hub
             var db = _redis.GetDatabase();
             await db.ListRightPushAsync(redisKey, serialized);
             await db.KeyExpireAsync(redisKey, timeLife);
+            await RedisNotificationUtils.StoreNotificationIndexAsync(db, payload, groupName, timeLife);
         }
         catch (Exception ex)
         {
@@ -122,7 +126,7 @@ public class RealtimeHub : Hub
         string redisKey = $"notifications:{groupName}";
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
 
-        string serialized = JsonSerializer.Serialize(payload);
+        string serialized = JsonSerializer.Serialize(new { groupName, data = payload });
 
         Console.WriteLine($"[DELAY BUS] Sending to {groupName}: {payload}");
 
@@ -131,6 +135,7 @@ public class RealtimeHub : Hub
             var db = _redis.GetDatabase();
             await db.ListRightPushAsync(redisKey, serialized);
             await db.KeyExpireAsync(redisKey, timeLife);
+            await RedisNotificationUtils.StoreNotificationIndexAsync(db, payload, groupName, timeLife);
         }
         catch (Exception ex)
         {
@@ -147,7 +152,7 @@ public class RealtimeHub : Hub
         string redisKey = $"notifications:{groupName}";
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
 
-        string serialized = JsonSerializer.Serialize(payload);
+        string serialized = JsonSerializer.Serialize(new { groupName, data = payload });
 
         Console.WriteLine($"[ADMIN FROM CAMERA] Sending to {groupName}: {payload}");
 
@@ -156,6 +161,7 @@ public class RealtimeHub : Hub
             var db = _redis.GetDatabase();
             await db.ListRightPushAsync(redisKey, serialized);
             await db.KeyExpireAsync(redisKey, timeLife);
+            await RedisNotificationUtils.StoreNotificationIndexAsync(db, payload, groupName, timeLife);
         }
         catch (Exception ex)
         {
@@ -164,4 +170,48 @@ public class RealtimeHub : Hub
 
         await Clients.Group(groupName).SendAsync(methodName, payload);
     }
+
+    public async Task DeleteNotification(string notificationId)
+    {
+        string indexKey = $"notification-index:{notificationId}";
+
+        try
+        {
+            var db = _redis.GetDatabase();
+
+            var groupName = (string?)await db.StringGetAsync(indexKey);
+            if (groupName is null)
+            {
+                Console.WriteLine($"[DELETE] Notification {notificationId} not found in index.");
+                return;
+            }
+
+            string redisKey = $"notifications:{groupName}";
+
+            var entries = await db.ListRangeAsync(redisKey);
+            foreach (var entry in entries)
+            {
+                var parsed = JsonSerializer.Deserialize<JsonElement>((string)entry!);
+                if (parsed.TryGetProperty("data", out var data) &&
+                    data.TryGetProperty("payload", out var innerPayload) &&
+                    innerPayload.TryGetProperty("id", out var idProp) &&
+                    idProp.GetString() == notificationId)
+                {
+                    await db.ListRemoveAsync(redisKey, entry, 1);
+                    break;
+                }
+            }
+
+            await db.KeyDeleteAsync(indexKey);
+
+            Console.WriteLine($"[DELETE] Notification {notificationId} removed from {groupName}.");
+
+            await Clients.Group(groupName).SendAsync("deleteNotification", notificationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis unavailable, could not delete notification {Id}.", notificationId);
+        }
+    }
+
 }
