@@ -1,11 +1,13 @@
+using Microsoft.EntityFrameworkCore;
+using RealTime.Data;
 using RealTime.Hubs;
 using RealTime.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddSingleton<RedisConnectionService>();
-builder.Services.AddSingleton<IRedisConnectionService>(sp => sp.GetRequiredService<RedisConnectionService>());
-builder.Services.AddHostedService(sp => sp.GetRequiredService<RedisConnectionService>());
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("PostgreSQL")));
+builder.Services.AddSingleton<PgNotificationService>();
 builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
 {

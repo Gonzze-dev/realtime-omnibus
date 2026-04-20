@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
+using RealTime.Models;
 using RealTime.Services;
 using RealTime.Utils;
 
@@ -7,12 +8,12 @@ namespace RealTime.Hubs;
 
 public class RealtimeHub : Hub
 {
-    private readonly IRedisConnectionService _redis;
+    private readonly PgNotificationService _pg;
     private readonly ILogger<RealtimeHub> _logger;
 
-    public RealtimeHub(IRedisConnectionService redis, ILogger<RealtimeHub> logger)
+    public RealtimeHub(PgNotificationService pg, ILogger<RealtimeHub> logger)
     {
-        _redis = redis;
+        _pg = pg;
         _logger = logger;
     }
 
@@ -31,187 +32,125 @@ public class RealtimeHub : Hub
     public async Task JoinFrontend(string idGroup)
     {
         string groupName = $"frontend/{idGroup}";
-        string redisKey = $"notifications:{groupName}";
-
         Console.WriteLine($"[JOIN FRONTEND] Joining {groupName}");
 
         await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
 
         try
         {
-            var db = _redis.GetDatabase();
-            var stored = await db.ListRangeAsync(redisKey);
-
-            if (stored.Length <= 0)
-            {
-                Console.WriteLine($"No stored notifications found for {groupName}");
-                return;
-            }
-
-            var notifications = stored
-                .Select(v => JsonSerializer.Deserialize<JsonElement>((string)v!))
-                .Where(e => e.TryGetProperty("data", out _))
-                .Select(e => e.GetProperty("data"))
-                .ToArray();
-
+            var notifications = await _pg.GetByGroupAsync(groupName);
             foreach (var notification in notifications)
-            {
                 await Clients.Caller.SendAsync("receiveNotification", notification);
-            }
 
-            Console.WriteLine($"Sent {notifications.Length} stored notifications to caller for {groupName}");
+            Console.WriteLine($"Sent stored notifications to caller for {groupName}");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Redis unavailable, cannot load stored notifications for {Group}.", groupName);
+            _logger.LogWarning(ex, "DB unavailable, cannot load stored notifications for {Group}.", groupName);
         }
     }
 
     public async Task SendToFrontend(string groupKey, JsonElement payload)
     {
+        Console.WriteLine($"[SEND TO FRONTEND KEY]: {groupKey}");
+
         string groupName = $"frontend/{groupKey}";
-        string methodName = "receiveNotification";
-        string redisKey = $"notifications:{groupName}";
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
-
-        string serialized = JsonSerializer.Serialize(new { groupName, data = payload });
-
-        Console.WriteLine($"Sending to {groupName}: {payload}");
+        var id = ExtractId(payload);
 
         try
         {
-            var db = _redis.GetDatabase();
-            await db.ListRightPushAsync(redisKey, serialized);
-            await db.KeyExpireAsync(redisKey, timeLife);
-            await RedisNotificationUtils.StoreNotificationIndexAsync(db, payload, groupName, timeLife);
+            await _pg.InsertAsync(id, groupKey, groupName, timeLife, payload);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Redis unavailable, notification not stored for {Group}.", groupName);
+            _logger.LogWarning(ex, "DB unavailable, notification not stored for {Group}.", groupName);
         }
 
-        await Clients.Group(groupName).SendAsync(methodName, payload);
+        await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
     public async Task SendToFrontendGlobal(JsonElement payload)
     {
-        string methodName = "receiveNotification";
         string groupName = "frontend/global";
-        string redisKey = $"notifications:{groupName}";
+        Console.WriteLine($"[SEND TO FRONTEND GLOBAL KEY]: {groupName}");
+
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
-
-        string serialized = JsonSerializer.Serialize(new { groupName, data = payload });
-
-        Console.WriteLine($"Sending to {groupName}: {payload}");
+        var id = ExtractId(payload);
 
         try
         {
-            var db = _redis.GetDatabase();
-            await db.ListRightPushAsync(redisKey, serialized);
-            await db.KeyExpireAsync(redisKey, timeLife);
-            await RedisNotificationUtils.StoreNotificationIndexAsync(db, payload, groupName, timeLife);
+            await _pg.InsertAsync(id, null, groupName, timeLife, payload);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Redis unavailable, notification not stored for {Group}.", groupName);
+            _logger.LogWarning(ex, "DB unavailable, notification not stored for {Group}.", groupName);
         }
 
-        await Clients.Group(groupName).SendAsync(methodName, payload);
+        await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
-    public async Task NotifyDelayBus(string groupKey, JsonElement payload)
+    public async Task NotifyDelayBus(GroupKeys groupKeys, JsonElement payload)
     {
-        string groupName = $"frontend/{groupKey}";
-        string methodName = "receiveNotification";
-        string redisKey = $"notifications:{groupName}";
+        string groupName = $"frontend/{groupKeys.Key}";
+        Console.WriteLine($"[SEND TO NOTIFY DELAY BUS]: {groupKeys}");
+
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
-
-        string serialized = JsonSerializer.Serialize(new { groupName, data = payload });
-
-        Console.WriteLine($"[DELAY BUS] Sending to {groupName}: {payload}");
-
+        var id = ExtractId(payload);
         try
         {
-            var db = _redis.GetDatabase();
-            await db.ListRightPushAsync(redisKey, serialized);
-            await db.KeyExpireAsync(redisKey, timeLife);
-            await RedisNotificationUtils.StoreNotificationIndexAsync(db, payload, groupName, timeLife);
+            await _pg.InsertAsync(id, groupKeys.TerminalID, groupName, timeLife, payload);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Redis unavailable, notification not stored for {Group}.", groupName);
+            _logger.LogWarning(ex, "DB unavailable, notification not stored for {Group}.", groupName);
         }
 
-        await Clients.Group(groupName).SendAsync(methodName, payload);
+        await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
     public async Task NotifyAdminFromCamera(string groupKey, JsonElement payload)
     {
         string groupName = $"frontend/admin/{groupKey}";
-        string methodName = "receiveNotification";
-        string redisKey = $"notifications:{groupName}";
+        Console.WriteLine($"[NOTFY ADMIN FROM CAMERA KEY]: {groupKey}");
+
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
-
-        string serialized = JsonSerializer.Serialize(new { groupName, data = payload });
-
-        Console.WriteLine($"[ADMIN FROM CAMERA] Sending to {groupName}: {payload}");
+        var id = ExtractId(payload);
 
         try
         {
-            var db = _redis.GetDatabase();
-            await db.ListRightPushAsync(redisKey, serialized);
-            await db.KeyExpireAsync(redisKey, timeLife);
-            await RedisNotificationUtils.StoreNotificationIndexAsync(db, payload, groupName, timeLife);
+            await _pg.InsertAsync(id, groupKey, groupName, timeLife, payload);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Redis unavailable, notification not stored for {Group}.", groupName);
+            _logger.LogWarning(ex, "DB unavailable, notification not stored for {Group}.", groupName);
         }
 
-        await Clients.Group(groupName).SendAsync(methodName, payload);
+        await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
     public async Task DeleteNotification(string notificationId)
     {
-        string indexKey = $"notification-index:{notificationId}";
-
         try
         {
-            var db = _redis.GetDatabase();
+            var id = Guid.Parse(notificationId);
+            var groupName = await _pg.GetGroupNameByIdAsync(id);
 
-            var groupName = (string?)await db.StringGetAsync(indexKey);
             if (groupName is null)
             {
-                Console.WriteLine($"[DELETE] Notification {notificationId} not found in index.");
+                Console.WriteLine($"[DELETE] Notification {notificationId} not found.");
                 return;
             }
 
-            string redisKey = $"notifications:{groupName}";
-
-            var entries = await db.ListRangeAsync(redisKey);
-            foreach (var entry in entries)
-            {
-                var parsed = JsonSerializer.Deserialize<JsonElement>((string)entry!);
-                if (parsed.TryGetProperty("data", out var data) &&
-                    data.TryGetProperty("payload", out var innerPayload) &&
-                    innerPayload.TryGetProperty("id", out var idProp) &&
-                    idProp.GetString() == notificationId)
-                {
-                    await db.ListRemoveAsync(redisKey, entry, 1);
-                    break;
-                }
-            }
-
-            await db.KeyDeleteAsync(indexKey);
-
-            Console.WriteLine($"[DELETE] Notification {notificationId} removed from {groupName}.");
-
+            await _pg.DeleteByIdAsync(id);
             await Clients.Group(groupName).SendAsync("deleteNotification", notificationId);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Redis unavailable, could not delete notification {Id}.", notificationId);
+            _logger.LogWarning(ex, "DB unavailable, could not delete notification {Id}.", notificationId);
         }
     }
 
+    private static Guid ExtractId(JsonElement payload) =>
+        Guid.Parse(payload.GetProperty("payload").GetProperty("id").GetString()!);
 }
