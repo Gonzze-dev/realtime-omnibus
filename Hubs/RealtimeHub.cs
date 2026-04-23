@@ -97,9 +97,10 @@ public class RealtimeHub : Hub
 
         var timeLife = PayloadUtils.ExtractTimeLife(payload);
         var id = ExtractId(payload);
+        
         try
         {
-            await _pg.InsertAsync(id, groupKeys.TerminalID, groupName, timeLife, payload);
+            await _pg.InsertAsync(id, groupKeys.Key, groupName, timeLife, payload);
         }
         catch (Exception ex)
         {
