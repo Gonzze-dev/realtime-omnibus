@@ -10,11 +10,28 @@ public class RealtimeHub : Hub
 {
     private readonly PgNotificationService _pg;
     private readonly ILogger<RealtimeHub> _logger;
+    private readonly string _apiKey;
 
-    public RealtimeHub(PgNotificationService pg, ILogger<RealtimeHub> logger)
+    public RealtimeHub(PgNotificationService pg, ILogger<RealtimeHub> logger, IConfiguration configuration)
     {
         _pg = pg;
         _logger = logger;
+        _apiKey = configuration["ApiKey"] ?? throw new InvalidOperationException("ApiKey is not configured.");
+    }
+
+    public override async Task OnConnectedAsync()
+    {
+        var httpContext = Context.GetHttpContext();
+        var providedKey = httpContext?.Request.Query["apiKey"].ToString();
+
+        if (providedKey != _apiKey)
+        {
+            _logger.LogWarning("Rejected connection {ConnectionId}: invalid or missing API key.", Context.ConnectionId);
+            Context.Abort();
+            return;
+        }
+
+        await base.OnConnectedAsync();
     }
 
     public async Task JoinFrontendGroup(string licensePatent)
