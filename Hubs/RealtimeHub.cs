@@ -147,26 +147,10 @@ public class RealtimeHub : Hub
         await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
-    public async Task DeleteNotification(string notificationId)
+    public async Task DeleteNotification(string notificationId, string groupName)
     {
-        try
-        {
-            var id = Guid.Parse(notificationId);
-            var groupName = await _pg.GetGroupNameByIdAsync(id);
-
-            if (groupName is null)
-            {
-                Console.WriteLine($"[DELETE] Notification {notificationId} not found.");
-                return;
-            }
-
-            await _pg.DeleteByIdAsync(id);
-            await Clients.Group(groupName).SendAsync("deleteNotification", notificationId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "DB unavailable, could not delete notification {Id}.", notificationId);
-        }
+        Console.WriteLine($"[DELETE NOTIFICATION] Deleting {notificationId} from {groupName}");
+        await Clients.Group(groupName).SendAsync("deleteNotification", notificationId);
     }
 
     private static Guid ExtractId(JsonElement payload) =>
