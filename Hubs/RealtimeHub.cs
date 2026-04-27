@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using RealTime.Models;
 using RealTime.Services;
-using RealTime.Utils;
 
 namespace RealTime.Hubs;
 
@@ -67,83 +66,27 @@ public class RealtimeHub : Hub
         }
     }
 
-    public async Task SendToFrontend(string groupKey, JsonElement payload)
+    public async Task SendToFrontend(string groupName, JsonElement payload)
     {
-        Console.WriteLine($"[SEND TO FRONTEND KEY]: {groupKey}");
-
-        string groupName = $"frontend/{groupKey}";
-        var timeLife = PayloadUtils.ExtractTimeLife(payload);
-        var id = ExtractId(payload);
-
-        try
-        {
-            await _pg.InsertAsync(id, groupKey, groupName, timeLife, payload);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "DB unavailable, notification not stored for {Group}.", groupName);
-        }
-
+        Console.WriteLine($"[SEND TO FRONTEND KEY]: {groupName}");
         await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
-    public async Task SendToFrontendGlobal(JsonElement payload)
+    public async Task SendToFrontendGlobal(string groupName, JsonElement payload)
     {
-        string groupName = "frontend/global";
         Console.WriteLine($"[SEND TO FRONTEND GLOBAL KEY]: {groupName}");
-
-        var timeLife = PayloadUtils.ExtractTimeLife(payload);
-        var id = ExtractId(payload);
-
-        try
-        {
-            await _pg.InsertAsync(id, null, groupName, timeLife, payload);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "DB unavailable, notification not stored for {Group}.", groupName);
-        }
-
         await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
-    public async Task NotifyDelayBus(GroupKeys groupKeys, JsonElement payload)
+    public async Task NotifyDelayBus(string groupName, JsonElement payload)
     {
-        string groupName = $"frontend/{groupKeys.Key}";
-        Console.WriteLine($"[SEND TO NOTIFY DELAY BUS]: {groupKeys}");
-
-        var timeLife = PayloadUtils.ExtractTimeLife(payload);
-        var id = ExtractId(payload);
-        
-        try
-        {
-            await _pg.InsertAsync(id, groupKeys.Key, groupName, timeLife, payload);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "DB unavailable, notification not stored for {Group}.", groupName);
-        }
-
+        Console.WriteLine($"[SEND TO NOTIFY DELAY BUS]: {groupName}");
         await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
-    public async Task NotifyAdminFromCamera(string groupKey, JsonElement payload)
+    public async Task NotifyAdminFromCamera(string groupName, JsonElement payload)
     {
-        string groupName = $"frontend/admin/{groupKey}";
-        Console.WriteLine($"[NOTFY ADMIN FROM CAMERA KEY]: {groupKey}");
-
-        var timeLife = PayloadUtils.ExtractTimeLife(payload);
-        var id = ExtractId(payload);
-
-        try
-        {
-            await _pg.InsertAsync(id, groupKey, groupName, timeLife, payload);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "DB unavailable, notification not stored for {Group}.", groupName);
-        }
-
+        Console.WriteLine($"[NOTIFY ADMIN FROM CAMERA KEY]: {groupName}");
         await Clients.Group(groupName).SendAsync("receiveNotification", payload);
     }
 
@@ -152,7 +95,4 @@ public class RealtimeHub : Hub
         Console.WriteLine($"[DELETE NOTIFICATION] Deleting {notificationId} from {groupName}");
         await Clients.Group(groupName).SendAsync("deleteNotification", notificationId);
     }
-
-    private static Guid ExtractId(JsonElement payload) =>
-        Guid.Parse(payload.GetProperty("payload").GetProperty("id").GetString()!);
 }

@@ -7,20 +7,18 @@ namespace RealTime.Services;
 
 public class PgNotificationService(IDbContextFactory<AppDbContext> dbFactory)
 {
-    public async Task InsertAsync(Guid id, string? groupKey, string groupName, TimeSpan timeLife, JsonElement payload)
+    public async Task UpdateGroupAsync(string notifId, string? groupKey, string groupName)
     {
+        var id = Guid.Parse(notifId);
         await using var db = await dbFactory.CreateDbContextAsync();
-
-        db.Notifications.Add(new Notification
+        var n = await db.Notifications.FindAsync(id);
+        if (n is null)
         {
-            Id = id,
-            GroupKey = groupKey,
-            GroupName = groupName,
-            Expiration = DateTime.UtcNow.Add(timeLife),
-            Date = DateTime.UtcNow,
-            Payload = payload.GetRawText()
-        });
-
+            Console.WriteLine($"[UPDATE GROUP] Notification {id} not found.");
+            return;
+        }
+        n.GroupKey = groupKey;
+        n.GroupName = groupName;
         await db.SaveChangesAsync();
     }
 
