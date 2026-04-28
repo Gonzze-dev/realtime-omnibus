@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
+using RealTime.Constants;
 using RealTime.Models;
 using RealTime.Services;
 
@@ -56,7 +57,7 @@ public class RealtimeHub : Hub
         {
             var notifications = await _pg.GetByGroupAsync(groupName);
             foreach (var notification in notifications)
-                await Clients.Caller.SendAsync("receiveNotification", notification);
+                await Clients.Caller.SendAsync(ClientMethods.ReceiveNotification, notification);
 
             Console.WriteLine($"Sent stored notifications to caller for {groupName}");
         }
@@ -69,30 +70,30 @@ public class RealtimeHub : Hub
     public async Task SendToFrontend(string groupName, JsonElement payload)
     {
         Console.WriteLine($"[SEND TO FRONTEND KEY]: {groupName}");
-        await Clients.Group(groupName).SendAsync("receiveNotification", payload);
+        await Clients.Group(groupName).SendAsync(ClientMethods.ReceiveNotification, payload);
     }
 
     public async Task SendToFrontendGlobal(string groupName, JsonElement payload)
     {
         Console.WriteLine($"[SEND TO FRONTEND GLOBAL KEY]: {groupName}");
-        await Clients.Group(groupName).SendAsync("receiveNotification", payload);
+        await Clients.Group(groupName).SendAsync(ClientMethods.ReceiveNotification, payload);
     }
 
     public async Task NotifyDelayBus(string groupName, JsonElement payload)
     {
         Console.WriteLine($"[SEND TO NOTIFY DELAY BUS]: {groupName}");
-        await Clients.Group(groupName).SendAsync("receiveNotification", payload);
+        await Clients.Group(groupName).SendAsync(ClientMethods.ReceiveNotification, payload);
     }
 
     public async Task NotifyAdminFromCamera(string groupName, JsonElement payload)
     {
         Console.WriteLine($"[NOTIFY ADMIN FROM CAMERA KEY]: {groupName}");
-        await Clients.Group(groupName).SendAsync("receiveNotification", payload);
+        await Clients.Group(groupName).SendAsync(ClientMethods.ReceiveNotification, payload);
     }
 
     public async Task DeleteNotification(string notificationId, string groupName)
     {
         Console.WriteLine($"[DELETE NOTIFICATION] Deleting {notificationId} from {groupName}");
-        await Clients.Group(groupName).SendAsync("deleteNotification", notificationId);
+        await Clients.Group(groupName).SendAsync(ClientMethods.DeleteNotification, notificationId);
     }
 }
