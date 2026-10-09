@@ -31,6 +31,7 @@ var app = builder.Build();
 
 app.UseCors();
 
+app.MapGet("/", () => Results.Redirect("/health"));
 app.MapGet("/health", () => "OK");
 app.MapHub<RealtimeHub>("/realtime");
 
