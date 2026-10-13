@@ -34,16 +34,16 @@ public class RealtimeHub : Hub
         await base.OnConnectedAsync();
     }
 
-    public async Task JoinFrontendGroup(string licensePatent)
+    public async Task JoinFrontendGroup(string licensePlate)
     {
-        Console.WriteLine($"Joining frontend {licensePatent}");
-        await Groups.AddToGroupAsync(Context.ConnectionId, $"frontend/{licensePatent}");
+        Console.WriteLine($"Joining frontend {licensePlate}");
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"frontend/{licensePlate}");
     }
 
-    public async Task LeaveFrontendGroup(string licensePatent)
+    public async Task LeaveFrontendGroup(string licensePlate)
     {
-        Console.WriteLine($"Leaving frontend {licensePatent}");
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"frontend/{licensePatent}");
+        Console.WriteLine($"Leaving frontend {licensePlate}");
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"frontend/{licensePlate}");
     }
 
     public async Task JoinFrontend(string idGroup)

@@ -1,5 +1,5 @@
-# Build context: raíz del repo (docker build -f infra.prod/Dockerfile .)
-# En Railway: RAILWAY_DOCKERFILE_PATH=infra.prod/Dockerfile
+# Build context: repo root (docker build -f infra.prod/Dockerfile .)
+# On Railway: RAILWAY_DOCKERFILE_PATH=infra.prod/Dockerfile
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
@@ -19,6 +19,6 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 4988
 USER app
 
-# Kestrel:Endpoints en appsettings tiene prioridad sobre ASPNETCORE_URLS,
-# por eso se sobreescribe el endpoint con el PORT que inyecta Railway.
+# Kestrel:Endpoints in appsettings takes precedence over ASPNETCORE_URLS,
+# so the endpoint is overridden with the PORT injected by Railway.
 CMD ["sh", "-c", "export Kestrel__Endpoints__Http__Url=\"http://0.0.0.0:${PORT:-4988}\"; exec dotnet RealTime.dll"]

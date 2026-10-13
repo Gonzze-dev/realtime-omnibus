@@ -1,3 +1,3 @@
 namespace RealTime.Models;
 
-public record GroupKeys(string Key, string LicensePatent, string TerminalID);
+public record GroupKeys(string Key, string LicensePlate, string TerminalID);

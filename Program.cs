@@ -9,7 +9,7 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("PostgreSQL")));
 builder.Services.AddSingleton<PgNotificationService>();
 builder.Services.AddSignalR();
-// CORS_ALLOWED_ORIGINS: orígenes separados por coma. Vacío = se permiten todos.
+// CORS_ALLOWED_ORIGINS: comma-separated origins. Empty = all are allowed.
 var corsAllowedOrigins = (builder.Configuration["CORS_ALLOWED_ORIGINS"] ?? string.Empty)
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options =>
